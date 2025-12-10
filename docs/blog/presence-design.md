@@ -3,7 +3,7 @@ slug: offline-online-indicator
 title: Design an Online/Offline Indicator (Presence Service)
 sidebar_label: Presence Service
 description: Designing a scalable presence system for 1 billion users.
-tags: [system-design, distributed-systems, websockets, redis]
+authors: ashish
 ---
 
 Designing a system to indicate if a user is **Online** or **Offline** (and their last seen timestamp) sounds simple on the surface, but becomes a massive engineering challenge when scaling to **1 Billion users**.
@@ -43,8 +43,8 @@ The client sends a signal to the server periodically saying, "I am alive."
 
 We established a "Push" model, but how should the client push this data?
 
-### 1. REST/HTTP (The Polling Approach)
-The client sends a `POST /health` request every $N$ seconds.
+### 1. REST/HTTP Based
+The client sends a `POST /health` request every *N* seconds.
 
 **Why this fails at scale:**
 * **Overhead:** HTTP is stateless. Every heartbeat requires a full 3-way TCP handshake (if not using keep-alive efficiently), SSL handshake overhead, and heavy HTTP headers.
@@ -61,7 +61,7 @@ The client opens a long-lived, bi-directional connection with the server.
 :::caution The "Disconnect" Fallacy
 A common misconception is that WebSockets natively handle all disconnects via an `onDisconnect` event.
 * **Clean Disconnect:** If a user clicks "Logout", the client sends a TCP FIN. The server knows immediately.
-* **Dirty Disconnect:** If the user loses 4G signal or their battery dies, **the server receives nothing.**
+* **Dirty Disconnect:** If the user loses internet connectivity or the connection is broken for any reason, **the server receives nothing.**
 * **The Fix:** We must implement an **Application-Level Heartbeat**. If the server doesn't receive a "Ping" frame or message within $N$ seconds, it forcibly closes the socket and marks the user offline.
   :::
 
@@ -76,29 +76,27 @@ Scaling persistent connections is harder than scaling stateless HTTP.
 
 ## Database Design & Estimation
 
-The compute layer is simple (Gateway servers holding connections). The complexity lies in the storage layer.
+The compute layer is pretty. All it has to do is upon receiving the request, perform a key value based insert or lookup and simply return back to the client. The complexity lies in the **storage layer**. 
 
 ### Query Patterns
-1.  **Write (Heavy):** Update User $A$'s timestamp (Heartbeat).
-2.  **Read (Heavy):** Get status for User $A$ (and their 500 friends) when User $B$ opens the app.
+1.  **Write (Heavy):** Update User *A*'s timestamp (Heartbeat).
+2.  **Read (Heavy):** Get status for User *A*'s friends/connections when User *A* opens the app.
 
 ### Data Schema
 We need a simple Key-Value pair.
 
-| Field | Type | Size |
-| :--- | :--- | :--- |
-| `UserID` | Integer | 4 Bytes |
-| `LastSeen` | Epoch (Int) | 4 Bytes |
+| Field  | Type    | Size |
+|:-------|:--------|-----|
+| UserID | Integer |  4 Bytes |
+| LastSeen | Epoch (Int) | 4 Bytes |
 | **Total** | | **8 Bytes** |
 
 ### Capacity Planning
 With 1 Billion users, do we need massive storage?
 
-$$
-1,000,000,000 \text{ users} \times 8 \text{ bytes} \approx 8 \text{ GB}
-$$
+1,000,000,000 users * 8 bytes = 8 GB
 
-:::tip Epiphany
+:::tip Insight
 We only need **~8 GB** of storage to hold the state of every user on the planet. This entire dataset can fit into the RAM of a single modern server instance.
 :::
 
@@ -125,9 +123,7 @@ Use the database's native feature to auto-expire keys. The Heartbeat simply rese
 
 **Verdict:** We will use **Option 3 (TTL)** as the primary mechanism, potentially optimized by Option 2 (explicitly deleting the key on a clean logout to avoid the TTL wait).
 
----
-
-## Technology Selection: Redis vs. DynamoDB
+## Database Selection: Redis vs. DynamoDB
 
 We need a Key-Value store that handles massive write throughput.
 
@@ -140,10 +136,10 @@ We need a Key-Value store that handles massive write throughput.
 * **Pros:** Serverless, high durability, multi-region replication (Global Tables).
 * **Cons:** **Cost and Hot Partitions.**
     * Cost: DynamoDB charges by **Write Capacity Units (WCUs)**.
-      * 16.6 Million writes/sec = **16.6 Million WCUs**.
-      * Cost per WCU (Provisioned) $\approx \$0.00065$ / hour.
-      * **Hourly Cost:** $\$10,833$.
-      * **Monthly Cost:** **~$7.9 Million / Month**.
+        * 16.6 Million writes/sec = **16.6 Million WCUs**.
+        * Cost per WCU (Provisioned) $\approx \$0.00065$ / hour.
+        * **Hourly Cost:** $\$10,833$.
+        * **Monthly Cost:** **~$7.9 Million / Month**.
     * Hot Partition: In DynamoDB, a single partition is strictly limited to **1,000 WCUs**. If 2,000 users map to the same partition key, requests get throttled.
 
 ### Candidate 2: Redis (The Winner)
@@ -152,11 +148,11 @@ Redis is an in-memory store. We are limited by CPU/Network throughput per node.
     * **In-Memory Speed:** Sub-millisecond reads/writes.
     * **Native TTL:** Redis handles key expiration natively and efficiently.
     * **Cost Effective:**
-      * Redis is an in-memory store. We are limited by CPU/Network throughput per node.
-      * A single robust Redis node (e.g., AWS `r7g.xlarge`) can handle **~600,000 writes/sec**. (**Benchmark**: https://aws.plainenglish.io/aws-elasticache-a-performance-and-cost-analysis-of-redis-7-1-vs-valkey-7-2-bfac4fb5c22a)
-      * Nodes required: $16,600,000 / 600,000 \approx$ **28 Shards**.
-      * Cost per node $\approx \$0.30$ / hour.
-      * **Monthly Cost:** $28 \times \$0.30 \times 730 \text{ hours} \approx$ **~$6132 / Month**.
+        * Redis is an in-memory store. We are limited by CPU/Network throughput per node.
+        * A single robust Redis node (e.g., AWS `r7g.xlarge`) can handle **~600,000 writes/sec**. (**Benchmark**: https://aws.plainenglish.io/aws-elasticache-a-performance-and-cost-analysis-of-redis-7-1-vs-valkey-7-2-bfac4fb5c22a)
+        * Nodes required: $16,600,000 / 600,000 \approx$ **28 Shards**.
+        * Cost per node $\approx \$0.30$ / hour.
+        * **Monthly Cost:** $28 * $0.30 * 730 hours = **~$6132 / Month**.
 * **Cons:**
     * **Persistence:** If Redis crashes, we lose "Last Seen" data (unless AOF mode is enabled, which slows performance).
 * **Mitigation:** For a Presence system, *ephemeral* data loss is acceptable. If Redis crashes, users briefly appear offline until their next heartbeat (seconds later).
