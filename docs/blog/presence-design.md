@@ -173,3 +173,4 @@ flowchart TD
     end
     
     note[Redis Key: UserID <br/> Value: Timestamp <br/> TTL: 30s] -.-> Redis
+```
