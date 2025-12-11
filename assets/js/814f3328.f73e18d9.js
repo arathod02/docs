@@ -1,1 +1,0 @@
-"use strict";(globalThis.webpackChunkdocs=globalThis.webpackChunkdocs||[]).push([[7472],{5513:e=>{e.exports=JSON.parse('{"title":"Recent posts","items":[{"title":"Presence Service","permalink":"/docs/blog/offline-online-indicator","unlisted":false,"date":"2025-12-10T10:55:15.000Z"}]}')}}]);
