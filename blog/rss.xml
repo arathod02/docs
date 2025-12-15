@@ -4,10 +4,181 @@
         <title>Ashish Rathod Blog</title>
         <link>https://arathod02.github.io/docs/blog</link>
         <description>Ashish Rathod Blog</description>
-        <lastBuildDate>Thu, 11 Dec 2025 12:26:27 GMT</lastBuildDate>
+        <lastBuildDate>Sun, 14 Dec 2025 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
+        <item>
+            <title><![CDATA[Implementing Shard Aware Application]]></title>
+            <link>https://arathod02.github.io/docs/blog/application-level-sharding-design</link>
+            <guid>https://arathod02.github.io/docs/blog/application-level-sharding-design</guid>
+            <pubDate>Sun, 14 Dec 2025 00:00:00 GMT</pubDate>
+            <description><![CDATA[In my previous post, we explored the high-level strategies for scaling databases, touching upon vertical scaling, read replicas, and finally, sharding. Today, I want to double-click on Sharding, specifically focusing on the Application-Level Sharding strategy.]]></description>
+            <content:encoded><![CDATA[<p>In my previous post, we explored the high-level strategies for scaling databases, touching upon vertical scaling, read replicas, and finally, sharding. Today, I want to double-click on <strong>Sharding</strong>, specifically focusing on the <strong>Application-Level Sharding</strong> strategy.</p>
+<p>We often talk about "making the application shard-aware," but what does that look like in code? How do we manage thousands of connections without overwhelming the application or the database? How do we handle re-sharding without downtime?</p>
+<p>In this post, I will walk you through a battle-tested architecture we implemented at a previous organization, where we managed multi-tenant data at scale using a custom <strong>Data Access Layer (DAL)</strong>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-metadata-control-plane">The Metadata Control Plane<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#the-metadata-control-plane" class="hash-link" aria-label="Direct link to The Metadata Control Plane" title="Direct link to The Metadata Control Plane" translate="no">​</a></h2>
+<p>To build a robust shard-aware application, you cannot hardcode connection strings or shard logic. You need a dynamic <strong>Control Plane</strong>. We solved this by externalizing our topology into two DynamoDB tables.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-database-metadata">1. Database Metadata<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#1-database-metadata" class="hash-link" aria-label="Direct link to 1. Database Metadata" title="Direct link to 1. Database Metadata" translate="no">​</a></h3>
+<p>This table acts as the source of truth for the physical infrastructure. It decouples the <em>logical</em> definition of a database from its <em>physical</em> connection details.</p>
+<ul>
+<li class=""><strong>Key:</strong> <code>ShardName</code> + <code>DatabaseName</code></li>
+<li class=""><strong>Attributes:</strong>
+<ul>
+<li class=""><code>ConnectionDetails</code> (JSON): Contains endpoints for different use cases (Write, Read, Analytics), credentials, and schema names.</li>
+<li class=""><code>CapacityMetrics</code>: Tracks the current load (e.g., number of Small/Medium/Large tenants) to aid in placement decisions for new tenants.</li>
+</ul>
+</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-tenant-metadata">2. Tenant Metadata<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#2-tenant-metadata" class="hash-link" aria-label="Direct link to 2. Tenant Metadata" title="Direct link to 2. Tenant Metadata" translate="no">​</a></h3>
+<p>This table serves as the routing directory. It maps a specific tenant to a logical shard.</p>
+<ul>
+<li class=""><strong>Key:</strong> <code>TenantID</code></li>
+<li class=""><strong>Attributes:</strong>
+<ul>
+<li class=""><code>ShardName</code>: The logical shard where this tenant resides.</li>
+<li class=""><code>DatabaseName</code>: The specific database instance within that shard.</li>
+</ul>
+</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-logical-relationship">The Logical Relationship<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#the-logical-relationship" class="hash-link" aria-label="Direct link to The Logical Relationship" title="Direct link to The Logical Relationship" translate="no">​</a></h3>
+<p>By splitting these concerns, we create a normalized view of our topology. The Tenant Metadata points to a logical location, and the Database Metadata resolves that location to physical credentials.</p>
+<!-- -->
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-bootup-sequence-initializedb">The Bootup Sequence: <code>initializeDB()</code><a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#the-bootup-sequence-initializedb" class="hash-link" aria-label="Direct link to the-bootup-sequence-initializedb" title="Direct link to the-bootup-sequence-initializedb" translate="no">​</a></h2>
+<p>Efficiency is paramount. We cannot fetch connection details from DynamoDB for every single query. Instead, we cache and initialize heavy resources during application startup.</p>
+<p>When the application boots, the <strong>Data Access Layer (DAL)</strong> performs the following <code>initializeDB()</code> routine:</p>
+<ol>
+<li class=""><strong>Fetch Topology:</strong> It scans the <code>Database Metadata</code> table to understand the entire available fleet.</li>
+<li class=""><strong>Pool Creation:</strong> For every unique combination of <code>Shard</code> + <code>Database</code> + <code>UseCase</code> (Read/Write), it initializes a connection pool (e.g., HikariCP).</li>
+<li class=""><strong>In-Memory Map:</strong> These pools are stored in a concurrent map, keyed by the logical topology identifier.</li>
+</ol>
+<p>This ensures that all expensive TCP handshakes are done eagerly, and the app is ready to serve traffic immediately upon becoming healthy.</p>
+<!-- -->
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="runtime-request-handling-getconnectiontenantid">Runtime Request Handling: <code>getConnection(tenantId)</code><a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#runtime-request-handling-getconnectiontenantid" class="hash-link" aria-label="Direct link to runtime-request-handling-getconnectiontenantid" title="Direct link to runtime-request-handling-getconnectiontenantid" translate="no">​</a></h2>
+<p>Once the application is running, the focus shifts to low-latency routing. When a request comes in for <code>Tenant-123</code>, the DAL needs to find the correct connection seamlessly.</p>
+<p>The API exposed to the upper layers is simple: <code>getConnection(Long tenantId)</code>.</p>
+<ol>
+<li class=""><strong>Lookup:</strong> The DAL queries the <code>Tenant Metadata</code> (often cached locally with a TTL) to find the <code>ShardName</code> and <code>DatabaseName</code> for the tenant.</li>
+<li class=""><strong>Resolution:</strong> It constructs the lookup key for the in-memory map.</li>
+<li class=""><strong>Acquisition:</strong> It borrows a connection from the pre-warmed pool and hands it to the request thread.</li>
+</ol>
+<!-- -->
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-strategic-benefits">The Strategic Benefits<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#the-strategic-benefits" class="hash-link" aria-label="Direct link to The Strategic Benefits" title="Direct link to The Strategic Benefits" translate="no">​</a></h2>
+<p>Implementing this logic within a library provides two massive architectural advantages that go beyond simple connectivity.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-logical-representation-of-infrastructure">1. Logical Representation of Infrastructure<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#1-logical-representation-of-infrastructure" class="hash-link" aria-label="Direct link to 1. Logical Representation of Infrastructure" title="Direct link to 1. Logical Representation of Infrastructure" translate="no">​</a></h3>
+<p>The application code never touches a raw JDBC URL.</p>
+<ul>
+<li class=""><strong>Scenario:</strong> You need to rotate database credentials or migrate a database to a new host URL.</li>
+<li class=""><strong>Action:</strong> You simply update the JSON in the <code>Database Metadata</code> table and trigger a refresh event in the application.</li>
+<li class=""><strong>Result:</strong> The DAL re-initializes the specific pool. No code deployment is required. The infrastructure is now configuration-driven.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-logical-mapping--zero-downtime-migration">2. Logical Mapping &amp; Zero-Downtime Migration<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#2-logical-mapping--zero-downtime-migration" class="hash-link" aria-label="Direct link to 2. Logical Mapping &amp; Zero-Downtime Migration" title="Direct link to 2. Logical Mapping &amp; Zero-Downtime Migration" translate="no">​</a></h3>
+<p>The mapping between a tenant and a database is fluid, not static.</p>
+<ul>
+<li class=""><strong>Scenario:</strong> <code>Tenant-ABC</code> has grown too large for <code>Shard-1</code> and needs to be moved to <code>Shard-2</code>.</li>
+<li class=""><strong>Action:</strong> After replicating the data to <code>Shard-2</code>, you simply update the <code>Tenant Metadata</code> table for <code>Tenant-ABC</code>.</li>
+<li class=""><strong>Result:</strong> The very next request for <code>Tenant-ABC</code> will resolve to <code>Shard-2</code>. The application layer requires zero changes to support tenant migration, enabling seamless re-balancing of the fleet.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="conclusion">Conclusion<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#conclusion" class="hash-link" aria-label="Direct link to Conclusion" title="Direct link to Conclusion" translate="no">​</a></h2>
+<p>Building a shard-aware application is an exercise in <strong>separation of concerns</strong>. By isolating the <em>topology</em> (Tenant Metadata) from the <em>infrastructure</em> (Database Metadata) and wrapping it all in a smart Data Access Layer, you gain the flexibility to scale, migrate, and manage your data tier without constantly refactoring your application code.</p>]]></content:encoded>
+        </item>
+        <item>
+            <title><![CDATA[Scaling Distributed Systems (Focus on Databases)]]></title>
+            <link>https://arathod02.github.io/docs/blog/scaling-distributed-systems</link>
+            <guid>https://arathod02.github.io/docs/blog/scaling-distributed-systems</guid>
+            <pubDate>Sat, 13 Dec 2025 00:00:00 GMT</pubDate>
+            <description><![CDATA[In distributed systems, the four possible chokepoints that a system can run into are CPU, Memory, Network, and Disk. Whenever the system hits the thresholds on any of these chokepoints, latency increases, throughput degrades, and we typically need to scale our systems.]]></description>
+            <content:encoded><![CDATA[<p>In distributed systems, the four possible chokepoints that a system can run into are <strong>CPU, Memory, Network, and Disk</strong>. Whenever the system hits the thresholds on any of these chokepoints, latency increases, throughput degrades, and we typically need to scale our systems.</p>
+<p>Scaling isn't just about "adding more"; it's about <em>how</em> and <em>where</em> you add capacity. Broadly, we have two strategies:</p>
+<ol>
+<li class=""><strong>Vertical Scaling</strong></li>
+<li class=""><strong>Horizontal Scaling</strong></li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-scaling-strategies">The Scaling Strategies<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#the-scaling-strategies" class="hash-link" aria-label="Direct link to The Scaling Strategies" title="Direct link to The Scaling Strategies" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="vertical-scaling-scale-up">Vertical Scaling (Scale Up)<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#vertical-scaling-scale-up" class="hash-link" aria-label="Direct link to Vertical Scaling (Scale Up)" title="Direct link to Vertical Scaling (Scale Up)" translate="no">​</a></h3>
+<p>In Vertical scaling, we aim to solve for bottlenecks by throwing more CPU, memory, disk, and network bandwidth to the application. Basically, we make the infrastructure bulky enough to handle more load and try to remain under the threshold of our resources.</p>
+<p><strong>Pros:</strong> Simplifies operations (no network overhead between nodes, no distributed consensus issues).
+<strong>Cons:</strong> Has a hard ceiling (hardware limits) and can get exponentially expensive.</p>
+<!-- -->
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="horizontal-scaling-scale-out">Horizontal Scaling (Scale Out)<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#horizontal-scaling-scale-out" class="hash-link" aria-label="Direct link to Horizontal Scaling (Scale Out)" title="Direct link to Horizontal Scaling (Scale Out)" translate="no">​</a></h3>
+<p>In horizontal scaling, we run multiple instances of the application on multiple machines. Basically, we add more machines to the compute layer. This fleet of compute servers is typically fronted by a load balancer.</p>
+<p>As the load increases, the compute layer is linearly scaled to cope with the load. Horizontal scaling also aids in fault tolerance; if one node dies, the others pick up the slack.</p>
+<!-- -->
+<div class="theme-admonition theme-admonition-info admonition_xJq3 alert alert--info"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 14 16"><path fill-rule="evenodd" d="M7 2.3c3.14 0 5.7 2.56 5.7 5.7s-2.56 5.7-5.7 5.7A5.71 5.71 0 0 1 1.3 8c0-3.14 2.56-5.7 5.7-5.7zM7 1C3.14 1 0 4.14 0 8s3.14 7 7 7 7-3.14 7-7-3.14-7-7-7zm1 3H6v5h2V4zm0 6H6v2h2v-2z"></path></svg></span>The "Unit Tech Economics"</div><div class="admonitionContent_BuS1"><p>Double-clicking a bit on the phrase <em>"As the load typically increases, the compute layer is linearly scaled"</em>: In order for this step to be efficient, it is very important to know the <strong>"Unit Tech Economics"</strong>.</p><p>For a given machine of a certain size (i.e., # of CPUs, RAM, Disk, and N/W bandwidth), what is the throughput that can be successfully and healthily served?</p><p>There isn't a magic formula for this. Each application needs to be load tested with <strong>one machine</strong> to arrive at the "Unit Tech Economics." Once you have these numbers, all you need to do is extrapolate them to the actual load anticipated in production or during peak hours.</p></div></div>
+<div class="theme-admonition theme-admonition-caution admonition_xJq3 alert alert--warning"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8.893 1.5c-.183-.31-.52-.5-.887-.5s-.703.19-.886.5L.138 13.499a.98.98 0 0 0 0 1.001c.193.31.53.501.886.501h13.964c.367 0 .704-.19.877-.5a1.03 1.03 0 0 0 .01-1.002L8.893 1.5zm.133 11.497H6.987v-2.003h2.039v2.003zm0-3.004H6.987V5.987h2.039v4.006z"></path></svg></span>The "Infinite Scale" Fallacy</div><div class="admonitionContent_BuS1"><p>Does this mean that with horizontal scaling of the API servers you can achieve infinite scale? <strong>Not really.</strong></p><p>What about your downstream systems, caches, and DBs? Will they be able to serve the spiked-up load? <strong>NO.</strong></p><p>When scaling, one should adopt the <strong>bottoms-up approach</strong>. Scaling API servers should ideally be the last component to be scaled up.</p></div></div>
+<hr>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="deep-dive-scaling-the-database">Deep Dive: Scaling the Database<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#deep-dive-scaling-the-database" class="hash-link" aria-label="Direct link to Deep Dive: Scaling the Database" title="Direct link to Deep Dive: Scaling the Database" translate="no">​</a></h2>
+<p>With this context set, let's go deep into the scaling aspects of DBs (stateful components).</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-vertical-scaling">1. Vertical Scaling<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#1-vertical-scaling" class="hash-link" aria-label="Direct link to 1. Vertical Scaling" title="Direct link to 1. Vertical Scaling" translate="no">​</a></h3>
+<p>As explained above, with vertical scaling—without splitting your DB instance—you typically host your DB on a bigger server, i.e., a machine with more capacity in terms of CPU, Memory, Disk, and Network. Basically, you run your DB on a bulkier server.</p>
+<!-- -->
+<blockquote>
+<p><strong>Real World Example: Zerodha</strong>
+One of India's largest stock brokers, famously scaled their massive volume by avoiding premature distributed complexity. They run their core systems on a <strong>single, massive Postgres Server</strong>.</p>
+<p><strong>Summary:</strong> Instead of rushing to sharding, Zerodha focused on optimizing queries and utilizing high-end hardware.</p>
+<ul>
+<li class=""><strong>How:</strong> They use high-performance hardware (huge RAM to fit working sets in memory) and optimized Postgres configurations.</li>
+<li class=""><strong>Pros:</strong> Simplifies architecture (no distributed transactions), ensures strict ACID compliance, and offers low latency.</li>
+<li class=""><strong>Cons:</strong> It is a Single Point of Failure (SPOF) if not HA, and restart times can be long due to the sheer size of memory buffers.</li>
+</ul>
+<p><em>Read more: <a href="https://zerodha.tech/blog/working-with-postgresql/" target="_blank" rel="noopener noreferrer" class="">Zerodha Tech Blog: Working with PostgreSQL</a></em></p>
+</blockquote>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-adding-read-replicas">2. Adding Read Replicas<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#2-adding-read-replicas" class="hash-link" aria-label="Direct link to 2. Adding Read Replicas" title="Direct link to 2. Adding Read Replicas" translate="no">​</a></h3>
+<p>In this approach, you provision for serving read traffic. Basically, you add one or more DB servers that specifically serve read traffic. This approach helps in reserving the primary node of the DB for writes, effectively isolating read and write traffic.</p>
+<!-- -->
+<p>In terms of reading from the application standpoint, the application need not know about multiple servers. It can leverage a couple of solutions to simplify reader connection management:</p>
+<h4 class="anchor anchorTargetStickyNavbar_Vzrq" id="a-reader-endpoint-aws-aurora--rds">a) Reader Endpoint (AWS Aurora / RDS)<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#a-reader-endpoint-aws-aurora--rds" class="hash-link" aria-label="Direct link to a) Reader Endpoint (AWS Aurora / RDS)" title="Direct link to a) Reader Endpoint (AWS Aurora / RDS)" translate="no">​</a></h4>
+<p>If you are using AWS Aurora or RDS, you can leverage the <strong>Reader Endpoint</strong>. A reader endpoint is a DNS record exposed by AWS. The application simply connects to this endpoint.</p>
+<p>At a high level, one can visualize the reader endpoint as a load balancer sitting in front of the DB readers. It distributes these read requests fairly amongst the available readers.</p>
+<!-- -->
+<h4 class="anchor anchorTargetStickyNavbar_Vzrq" id="b-rds-proxy">b) RDS Proxy<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#b-rds-proxy" class="hash-link" aria-label="Direct link to b) RDS Proxy" title="Direct link to b) RDS Proxy" translate="no">​</a></h4>
+<p><strong>What is RDS Proxy?</strong>
+Amazon RDS Proxy is a fully managed, highly available database proxy that sits between your application and your relational database.</p>
+<p><strong>Use Cases:</strong></p>
+<ol>
+<li class=""><strong>Connection Pooling:</strong> It maintains a pool of established connections to your database, sharing them among application requests. This is crucial for serverless applications (like Lambda) that might open thousands of connections quickly.</li>
+<li class=""><strong>Resiliency:</strong> It reduces failover times by bypassing DNS cache propagation delays.</li>
+</ol>
+<!-- -->
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-sharding">3. Sharding<a href="https://arathod02.github.io/docs/blog/scaling-distributed-systems#3-sharding" class="hash-link" aria-label="Direct link to 3. Sharding" title="Direct link to 3. Sharding" translate="no">​</a></h3>
+<p>Sharding is <strong>not</strong> a Day 0 approach. You typically do this when you know the user and data volume will exceed the capacity of a vertically scaled single node.</p>
+<p>In Sharding, you split the data across multiple primary shards.</p>
+<!-- -->
+<p><strong>How do you decide where data resides?</strong></p>
+<ol>
+<li class=""><strong>Range-Based Mapping:</strong>
+<ul>
+<li class="">Assume you are a platform serving millions of tenants. You might say: Tenants starting with <code>a-j</code> reside in Shard 1, <code>k-t</code> in Shard 2, and <code>u-z</code> in Shard 3.</li>
+</ul>
+</li>
+<li class=""><strong>Static Mapping:</strong>
+<ul>
+<li class="">In this approach, you maintain a static mapping (lookup table) between tenants and DB shards. E.g., Tenant 1 maps to Shard 1, Tenant 2 maps to Shard 1, Tenant 3 maps to Shard 2, etc.</li>
+</ul>
+</li>
+</ol>
+<p><strong>Where do you host this mapping logic?</strong></p>
+<ol>
+<li class="">
+<p><strong>Application Layer</strong></p>
+<ul>
+<li class="">We make the application "shard aware." The application <strong>KNOWS</strong> the DB topology and determines which shard a given tenant resides in.</li>
+<li class="">The application then connects to the respective DB shard to perform reads and writes.</li>
+</ul>
+</li>
+<li class="">
+<p><strong>External Layer (Smart Proxy)</strong></p>
+<ul>
+<li class="">Instead of the application knowing the topology, a proxy layer <strong>KNOWS</strong> the DB topology.</li>
+<li class="">You configure server rules and query rules in the proxy layer. Based on the incoming query, the proxy routes the request to the correct DB shard.</li>
+</ul>
+</li>
+</ol>
+<p><em>I will write another blog to go really deep into BOTH the above techniques (Application vs. Proxy sharding). I will link those two blogs here soon.</em></p>]]></content:encoded>
+        </item>
         <item>
             <title><![CDATA[A Deep Dive into Database Storage Engines and Soft Deletion Strategies.]]></title>
             <link>https://arathod02.github.io/docs/blog/avoid-hard-deletes</link>
