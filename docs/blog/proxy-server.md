@@ -1,7 +1,9 @@
 ---
 id: proxysql-deep-dive
 title: Scaling Databases with Proxy Servers
-sidebar_label: Proxy Servers & ProxySQL
+sidebar_label: Database Proxy Servers
+authors: ashish
+date: 2025-12-25
 ---
 
 # Understanding Proxy Servers: A Deep Dive into ProxySQL
