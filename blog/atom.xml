@@ -214,7 +214,7 @@ Some advanced proxies can cache the results of frequently executed queries in th
         <link href="https://arathod02.github.io/docs/blog/application-level-sharding-design"/>
         <updated>2025-12-14T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[In my previous post, we explored the high-level strategies for scaling databases, touching upon vertical scaling, read replicas, and finally, sharding. Today, I want to double-click on Sharding, specifically focusing on the Application-Level Sharding strategy.]]></summary>
-        <content type="html"><![CDATA[<p>In my previous post, we explored the high-level strategies for scaling databases, touching upon vertical scaling, read replicas, and finally, sharding. Today, I want to double-click on <strong>Sharding</strong>, specifically focusing on the <strong>Application-Level Sharding</strong> strategy.</p>
+        <content type="html"><![CDATA[<p>In my previous <a class="" href="https://arathod02.github.io/docs/blog/scaling-distributed-systems">post</a>, we explored the high-level strategies for scaling databases, touching upon vertical scaling, read replicas, and finally, sharding. Today, I want to double-click on <strong>Sharding</strong>, specifically focusing on the <strong>Application-Level Sharding</strong> strategy.</p>
 <p>We often talk about "making the application shard-aware," but what does that look like in code? How do we manage thousands of connections without overwhelming the application or the database? How do we handle re-sharding without downtime?</p>
 <p>In this post, I will walk you through a battle-tested architecture we implemented at a previous organization, where we managed multi-tenant data at scale using a custom <strong>Data Access Layer (DAL)</strong>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="the-metadata-control-plane">The Metadata Control Plane<a href="https://arathod02.github.io/docs/blog/application-level-sharding-design#the-metadata-control-plane" class="hash-link" aria-label="Direct link to The Metadata Control Plane" title="Direct link to The Metadata Control Plane" translate="no">​</a></h2>
@@ -381,7 +381,7 @@ Amazon RDS Proxy is a fully managed, highly available database proxy that sits b
 </ul>
 </li>
 </ol>
-<p><em>I will write another blog to go really deep into BOTH the above techniques (Application vs. Proxy sharding). I will link those two blogs here soon.</em></p>]]></content>
+<p><em>I have written separate blogs on <a class="" href="https://arathod02.github.io/docs/blog/application-level-sharding-design">Shard Aware Applications</a> and <a class="" href="https://arathod02.github.io/docs/blog/proxy-server">Exteral DB Proxy</a> to go really deep into BOTH the above techniques (Application vs. Proxy sharding).</em></p>]]></content>
         <author>
             <name>Ashish Rathod</name>
             <uri>https://www.linkedin.com/in/ashish-rathod02/</uri>
