@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://arathod02.github.io/docs/blog</id>
     <title>Ashish Rathod Blog</title>
-    <updated>2025-12-25T11:38:10.000Z</updated>
+    <updated>2025-12-25T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://arathod02.github.io/docs/blog"/>
     <subtitle>Ashish Rathod Blog</subtitle>
@@ -11,7 +11,7 @@
         <title type="html"><![CDATA[Scaling Databases with Proxy Servers]]></title>
         <id>https://arathod02.github.io/docs/blog/proxy-server</id>
         <link href="https://arathod02.github.io/docs/blog/proxy-server"/>
-        <updated>2025-12-25T11:38:10.000Z</updated>
+        <updated>2025-12-25T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[In the complex landscape of distributed systems, direct communication between clients and backend resources is often inefficient or insecure. Enter the Proxy Server—an intermediary that sits between the end-user clients and the resources they intend to browse or access.]]></summary>
         <content type="html"><![CDATA[<p>In the complex landscape of distributed systems, direct communication between clients and backend resources is often inefficient or insecure. Enter the <strong>Proxy Server</strong>—an intermediary that sits between the end-user clients and the resources they intend to browse or access.</p>
 <p>In the context of database architecture, a database proxy abstracts the underlying database topology from the application layer. Instead of applications connecting directly to a specific database instance (like a primary or a replica), they connect to the proxy, which then intelligently routes the query to the appropriate destination.</p>
@@ -132,6 +132,10 @@ Some advanced proxies can cache the results of frequently executed queries in th
 <!-- -->
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="conclusion">Conclusion<a href="https://arathod02.github.io/docs/blog/proxy-server#conclusion" class="hash-link" aria-label="Direct link to Conclusion" title="Direct link to Conclusion" translate="no">​</a></h3>
 <p>By leveraging ProxySQL, we effectively decoupled our application from the database infrastructure. We achieved the ability to "burst" our read capacity by adding elastic nodes (Hostgroup 30) and routing heavy traffic to them via <code>mysql_query_rules</code>. All of this happened transparently to the application, ensuring high availability and cost efficiency during peak business hours.</p>]]></content>
+        <author>
+            <name>Ashish Rathod</name>
+            <uri>https://www.linkedin.com/in/ashish-rathod02/</uri>
+        </author>
     </entry>
     <entry>
         <title type="html"><![CDATA[Real-Time Communication with Server-Sent Events (SSE)]]></title>

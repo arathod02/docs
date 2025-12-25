@@ -4,7 +4,7 @@
         <title>Ashish Rathod Blog</title>
         <link>https://arathod02.github.io/docs/blog</link>
         <description>Ashish Rathod Blog</description>
-        <lastBuildDate>Thu, 25 Dec 2025 11:38:10 GMT</lastBuildDate>
+        <lastBuildDate>Thu, 25 Dec 2025 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
@@ -12,7 +12,7 @@
             <title><![CDATA[Scaling Databases with Proxy Servers]]></title>
             <link>https://arathod02.github.io/docs/blog/proxy-server</link>
             <guid>https://arathod02.github.io/docs/blog/proxy-server</guid>
-            <pubDate>Thu, 25 Dec 2025 11:38:10 GMT</pubDate>
+            <pubDate>Thu, 25 Dec 2025 00:00:00 GMT</pubDate>
             <description><![CDATA[In the complex landscape of distributed systems, direct communication between clients and backend resources is often inefficient or insecure. Enter the Proxy Server—an intermediary that sits between the end-user clients and the resources they intend to browse or access.]]></description>
             <content:encoded><![CDATA[<p>In the complex landscape of distributed systems, direct communication between clients and backend resources is often inefficient or insecure. Enter the <strong>Proxy Server</strong>—an intermediary that sits between the end-user clients and the resources they intend to browse or access.</p>
 <p>In the context of database architecture, a database proxy abstracts the underlying database topology from the application layer. Instead of applications connecting directly to a specific database instance (like a primary or a replica), they connect to the proxy, which then intelligently routes the query to the appropriate destination.</p>
