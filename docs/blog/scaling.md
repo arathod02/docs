@@ -164,4 +164,4 @@ graph TD
     * Instead of the application knowing the topology, a proxy layer **KNOWS** the DB topology.
     * You configure server rules and query rules in the proxy layer. Based on the incoming query, the proxy routes the request to the correct DB shard.
 
-*I will write another blog to go really deep into BOTH the above techniques (Application vs. Proxy sharding). I will link those two blogs here soon.*
+*I have written separate blogs on [Shard Aware Applications](/shard-aware-app-design.md) and [Exteral DB Proxy](/proxy-server.md) to go really deep into BOTH the above techniques (Application vs. Proxy sharding).*

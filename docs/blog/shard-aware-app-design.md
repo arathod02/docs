@@ -5,7 +5,7 @@ authors: ashish
 date: 2025-12-14
 ---
 
-In my previous post, we explored the high-level strategies for scaling databases, touching upon vertical scaling, read replicas, and finally, sharding. Today, I want to double-click on **Sharding**, specifically focusing on the **Application-Level Sharding** strategy.
+In my previous [post](/scaling.md), we explored the high-level strategies for scaling databases, touching upon vertical scaling, read replicas, and finally, sharding. Today, I want to double-click on **Sharding**, specifically focusing on the **Application-Level Sharding** strategy.
 
 We often talk about "making the application shard-aware," but what does that look like in code? How do we manage thousands of connections without overwhelming the application or the database? How do we handle re-sharding without downtime?
 
