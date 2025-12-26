@@ -146,6 +146,7 @@ eventSource.onmessage = function(event) {
     console.log("New Log:", event.data);
 };
 ```
+![SSE Log Streaming](/img/sse-log-streaming.png)
 
 SSE is a powerful tool in your system design toolkit. While it doesn't replace WebSockets for complex bidirectional needs (like a chat app), it is often the simpler, more efficient choice for one-way updates.
 
