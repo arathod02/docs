@@ -7,7 +7,8 @@ date: 2025-12-27
 
 In distributed systems, managing access to shared resources is one of the most critical challenges we face. When multiple processes or threads attempt to modify the same data simultaneously, we risk race conditions that can corrupt the system's state.
 
-This post explores **Pessimistic Locking**—a mechanism where we assume a conflict will occur and lock the data before operating on it. We will dive into MySQL's locking mechanisms, deadlock detection, and analyze a Python simulation to see these locks in action.
+## Pessimistic Locking
+It is a mechanism where we assume a conflict will occur and lock the data before operating on it. We will dive into MySQL's locking mechanisms, deadlock detection, and analyze a Python simulation to see these locks in action.
 
 ## 1. What are Locks and Why Do We Need Them?
 
