@@ -251,13 +251,13 @@ flowchart TD
     LB --> API1 & API2 & API3
     
     subgraph Shard_1 ["Shard 1: Keys A-M"]
-        M1[("Master 1")] -- Repl --> R1a[("Replica 1A")]
-        M1 -- Repl --> R1b[("Replica 1B")]
+        M1[("Master 1")] -- Async Repl --> R1a[("Replica 1A")]
+        M1 -- Async Repl --> R1b[("Replica 1B")]
     end
     
     subgraph Shard_2 ["Shard 2: Keys N-Z"]
-        M2[("Master 2")] -- Repl --> R2a[("Replica 2A")]
-        M2 -- Repl --> R2b[("Replica 2B")]
+        M2[("Master 2")] -- Async Repl --> R2a[("Replica 2A")]
+        M2 -- Async Repl --> R2b[("Replica 2B")]
     end
     
     %% Routing connections
