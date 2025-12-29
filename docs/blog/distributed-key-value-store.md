@@ -1,9 +1,8 @@
 ---
-slug: db-pessimistic-optimistic-locking
-title: Scalable Distributed Key-Value Store
+slug: distributed-key-value-store
+title: Distributed Key-Value Store
 authors: ashish
 date: 2025-12-28
-
 ---
 
 In this post, we will walk through the journey of designing and implementing a horizontally scalable Key-Value store. We will start from a basic implementation, iterate through schema designs, optimize for performance, and finally scale it to handle massive loads.
@@ -107,9 +106,15 @@ def put(key, value, ttl):
 **The Solution:** Use an **UPSERT**. In MySQL, we can use `REPLACE INTO` or `INSERT ON DUPLICATE KEY UPDATE`.
 
 ```sql
-REPLACE INTO store (`key`, `value`, `expired_at`) 
-VALUES ('my_key', 'my_value', 1735460000);
+INSERT INTO store (`key`, `value`, `expired_at`) 
+                VALUES (%s, %s, NOW())
+                ON DUPLICATE KEY UPDATE 
+                `value` = VALUES(`value`), 
+                `expired_at` = NOW()
 ```
+:::tip Avoid "REPLACE INTO" 
+More details can be found [here](/concurrent-replace.md)
+:::
 
 :::info Transaction Autocommit
 In modern databases (like MySQL with InnoDB), if you fire a single statement like `REPLACE INTO` or `UPDATE`, the engine implicitly starts a transaction, executes the statement, and commits it. You do not need to manually handle transaction boundaries for single atomic operations.
